@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bratty's Bingo - Real-time Hosting Platform</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        display: ['Fredoka', 'cursive']
+                    },
+                    colors: {
+                        bingo: {
+                            b: '#EF4444', // Red
+                            i: '#F59E0B', // Amber/Yellow
+                            n: '#10B981', // Green
+                            g: '#3B82F6', // Blue
+                            o: '#8B5CF6'  // Purple
+                        }
+                    },
+                    animation: {
+                        'bounce-short': 'bounce 0.5s ease-in-out 1',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 15px rgba(245, 158, 11, 0.5)' },
+                            '50%': { boxShadow: '0 0 30px rgba(245, 158, 11, 0.9)' }
+                        },
+                        popIn: {
+                            '0%': { transform: 'scale(0.5)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+        .daubed-cell {
+            background: radial-gradient(circle, rgba(239,68,68,0.9) 0%, rgba(185,28,28,0.95) 100%);
+            color: white !important;
+            transform: scale(0.95);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 10px rgba(239,68,68,0.6);
+        }
+        .bg-glass {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-amber-500 selection:text-slate-900 pb-12">
+
+<div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+
+    <!-- Top Header & Role Switcher -->
+    <header class="bg-glass rounded-2xl p-4 mb-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-800">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white text-2xl font-black shadow-lg font-display">
+                B
+            </div>
+            <div>
+                <h1 class="text-2xl font-black tracking-wide font-display bg-gradient-to-r from-amber-400 via-rose-400 to-purple-400 bg-clip-text text-transparent">
+                    BRATTY'S BINGO
+                </h1>
+                <p class="text-xs text-slate-400 flex items-center gap-2">
+                    <span id="connectionStatus" class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Room Code: <span id="roomCodeDisplay" class="font-mono font-bold text-amber-400">ROOM-101</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Role Selector Tabs -->
+        <div class="flex items-center bg-slate-900/80 p-1.5 rounded-xl border border-slate-800 w-full md:w-auto">
+            <button id="btnRolePlayer" onclick="window.switchRole('player')" class="flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 shadow-md">
+                <i class="fa-solid fa-gamepad"></i> Player View
+            </button>
+            <button id="btnRoleHost" onclick="window.switchRole('host')" class="flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold text-slate-400 hover:text-white transition-all duration-200 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-crown text-amber-400"></i> Host / Master
+            </button>
+        </div>
+    </header>
+
+    <div id="hostView" class="hidden space-y-6">
+        <!-- Top Controls & Pattern Card Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Current Call Display -->
+            <div class="lg:col-span-5 bg-glass rounded-2xl p-6 shadow-2xl flex flex-col items-center justify-center text-center relative overflow-hidden border border-amber-500/20">
+                <div class="absolute top-3 left-4 text-xs font-semibold text-slate-400 uppercase tracking-widest">Current Number</div>
+                
+                <div class="my-4 flex items-center justify-center">
+                    <div id="currentBall" class="w-36 h-36 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 flex flex-col items-center justify-center shadow-2xl transition-all duration-300 transform scale-100">
+                        <span id="currentLetter" class="text-2xl font-black font-display text-slate-500">-</span>
+                        <span id="currentNumber" class="text-6xl font-black font-display text-white">--</span>
+                    </div>
+                </div>
+
+                <!-- Draw Action Controls -->
+                <div class="w-full flex items-center justify-center gap-3 mt-2">
+                    <button id="btnDrawNext" onclick="window.drawNextNumber()" class="px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black rounded-xl shadow-lg hover:shadow-emerald-500/20 active:scale-95 transition-all text-base flex-1 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-dice text-lg"></i> DRAW NEXT
+                    </button>
+                    <button id="btnAutoDraw" onclick="window.toggleAutoDraw()" class="px-4 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition-all border border-slate-700 text-sm flex items-center gap-2">
+                        <i id="autoDrawIcon" class="fa-solid fa-play text-amber-400"></i> <span id="autoDrawText">Auto</span>
+                    </button>
+                </div>
+
+                <!-- Audio Callout Options -->
+                <div class="flex items-center gap-4 mt-4 text-xs text-slate-400">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chkAudioVoice" checked class="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500">
+                        <span>Voice Callouts</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="chkSoundEffects" checked class="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500">
+                        <span>SFX</span>
+                    </label>
+                    <div class="flex items-center gap-1.5 ml-auto">
+                        <span>Speed:</span>
+                        <select id="autoSpeedSelect" onchange="window.updateAutoSpeed()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1">
+                            <option value="5000">5s</option>
+                            <option value="3000" selected>3s</option>
+                            <option value="2000">2s</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pattern Selection & Room Control Bar -->
+            <div class="lg:col-span-7 space-y-6 flex flex-col justify-between">
+                
+                <!-- Room Controls Bar -->
+                <div class="bg-glass rounded-2xl p-4 shadow-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-slate-900/90 px-4 py-2 rounded-xl border border-slate-800">
+                            <span class="text-xs text-slate-400 block">Drawn</span>
+                            <span id="drawnCount" class="text-xl font-black text-amber-400 font-display">0 / 75</span>
+                        </div>
+                        <div class="bg-slate-900/90 px-4 py-2 rounded-xl border border-slate-800">
+                            <span class="text-xs text-slate-400 block">Active Claims</span>
+                            <span id="activeClaimsBadge" class="text-xl font-black text-indigo-400 font-display">0</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="window.confirmResetGame()" class="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-sm rounded-xl border border-rose-500/30 transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-left"></i> Reset Round
+                        </button>
+                        <button onclick="window.copyPlayerShareLink()" class="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-sm rounded-xl border border-amber-500/30 transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-share-nodes"></i> Share Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Host Pattern Selector Card -->
+                <div class="bg-glass rounded-2xl p-5 shadow-xl border border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                            <i id="hostPatternIcon" class="fa-solid fa-shapes text-2xl"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold uppercase tracking-wider text-amber-400">Winning Game Pattern</div>
+                            <h3 id="hostPatternTitle" class="text-lg font-black text-white font-display">Standard Line</h3>
+                            <p id="hostPatternDesc" class="text-xs text-slate-400">Any horizontal row, vertical column, or diagonal line</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+                        <div id="hostPatternPreview" class="grid grid-cols-5 gap-0.5 w-12 h-12 p-1 bg-slate-900 rounded-lg border border-slate-700 shrink-0"></div>
+                        
+                        <div class="flex-1 md:flex-initial">
+                            <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Select Pattern:</label>
+                            <select id="selectBingoPattern" onchange="window.changeWinningPattern(this.value)" class="bg-slate-900 border border-amber-500/50 text-amber-300 font-bold text-sm rounded-xl px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                <option value="line">Standard Line (1 Line)</option>
+                                <option value="double_line">Double Line (Any 2 Lines)</option>
+                                <option value="triple_line">Triple Line (Any 3 Lines)</option>
+                                <option value="four_corners">4 Corners</option>
+                                <option value="postage_stamp">Postage Stamp (2x2 Corner)</option>
+                                <option value="all_postage_stamps">All 4 Corner Stamps</option>
+                                <option value="x_pattern">X Pattern</option>
+                                <option value="plus">Plus Sign (+)</option>
+                                <option value="star">Star / Asterisk (X + Plus)</option>
+                                <option value="frame">Outer Frame / Perimeter</option>
+                                <option value="inner_frame">Inner Box (Around FREE)</option>
+                                <option value="letter_t">Letter T</option>
+                                <option value="letter_l">Letter L</option>
+                                <option value="letter_h">Letter H</option>
+                                <option value="letter_z">Letter Z</option>
+                                <option value="diamond">Diamond Shape</option>
+                                <option value="six_pack">Six Pack (2x3 or 3x2 Block)</option>
+                                <option value="nine_pack">Nine Pack (3x3 Block)</option>
+                                <option value="top_bottom">Top & Bottom Rows</option>
+                                <option value="blackout">Blackout (Full House)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Master Board Section -->
+        <div class="bg-glass rounded-2xl p-6 shadow-2xl border border-slate-800">
+            <h2 class="text-lg font-black font-display text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-table-cells text-amber-400"></i> MASTER CALLER BOARD
+                <span class="text-xs text-slate-400 font-normal ml-auto">Click any number to manually toggle</span>
+            </h2>
+
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-9 bg-bingo-b text-slate-950 font-black font-display rounded-lg flex items-center justify-center shrink-0 text-sm">B</div>
+                    <div id="boardRowB" class="grid grid-cols-15 gap-1 flex-1"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-9 bg-bingo-i text-slate-950 font-black font-display rounded-lg flex items-center justify-center shrink-0 text-sm">I</div>
+                    <div id="boardRowI" class="grid grid-cols-15 gap-1 flex-1"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-9 bg-bingo-n text-slate-950 font-black font-display rounded-lg flex items-center justify-center shrink-0 text-sm">N</div>
+                    <div id="boardRowN" class="grid grid-cols-15 gap-1 flex-1"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-9 bg-bingo-g text-slate-950 font-black font-display rounded-lg flex items-center justify-center shrink-0 text-sm">G</div>
+                    <div id="boardRowG" class="grid grid-cols-15 gap-1 flex-1"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-9 bg-bingo-o text-slate-950 font-black font-display rounded-lg flex items-center justify-center shrink-0 text-sm">O</div>
+                    <div id="boardRowO" class="grid grid-cols-15 gap-1 flex-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Player Claims Feed -->
+        <div class="bg-glass rounded-2xl p-6 shadow-2xl border border-slate-800">
+            <h2 class="text-lg font-black font-display text-white mb-4 flex items-center justify-between">
+                <span><i class="fa-solid fa-trophy text-amber-400 mr-2"></i> LIVE BINGO CLAIMS QUEUE</span>
+                <span id="claimsCount" class="text-xs bg-amber-500/20 text-amber-400 font-mono px-3 py-1 rounded-full border border-amber-500/30">0</span>
+            </h2>
+
+            <div id="claimsList" class="space-y-3">
+                <div id="noClaimsText" class="text-center py-8 text-slate-500 text-sm italic">
+                    No player claims submitted yet for this round.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="playerView" class="space-y-6">
+
+        <!-- Player Name Registration Card -->
+        <div id="playerSetupCard" class="bg-glass rounded-2xl p-8 max-w-md mx-auto text-center space-y-6 shadow-2xl border border-amber-500/30">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-500 mx-auto flex items-center justify-center text-3xl text-slate-950 font-black font-display shadow-lg">
+                <i class="fa-solid fa-user-gear"></i>
+            </div>
+            <div>
+                <h2 class="text-2xl font-black font-display text-white">Join Bingo Game</h2>
+                <p class="text-xs text-slate-400 mt-1">Enter your display name to receive 6 unique Bingo cards!</p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="inputPlayerName" placeholder="Enter your name..." class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-lg">
+                <button onclick="window.savePlayerName()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 hover:opacity-90 text-slate-950 font-black text-base rounded-xl shadow-lg transition-all transform active:scale-95">
+                    Start Playing (6 Cards)
+                </button>
+            </div>
+        </div>
+
+        <!-- Player Dashboard Area -->
+        <div id="playerMainArea" class="hidden space-y-6">
+            
+            <!-- Player Top Info Bar -->
+            <div class="bg-glass rounded-2xl p-4 shadow-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center font-display text-lg">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 block">Playing as:</span>
+                        <span id="displayPlayerName" class="font-black text-amber-400 font-display text-lg">Player</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="window.generateNewCardsForPlayer()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-arrows-rotate text-amber-400"></i> New Cards
+                    </button>
+                    <button onclick="window.changePlayerName()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-to-square text-amber-400"></i> Edit Name
+                    </button>
+                </div>
+            </div>
+
+            <!-- Target Pattern & Live Caller Bar -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <!-- Target Pattern Info Card -->
+                <div class="md:col-span-5 bg-glass rounded-2xl p-5 shadow-xl border border-amber-500/30 flex items-center gap-4">
+                    <div id="playerPatternPreview" class="grid grid-cols-5 gap-1 w-16 h-16 p-1 bg-slate-900 rounded-xl border border-amber-500/40 shrink-0"></div>
+                    <div class="flex-1">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-amber-400">Target Winning Pattern</div>
+                        <h3 id="playerPatternName" class="text-base font-black text-white font-display">Standard Line</h3>
+                        <p id="playerPatternDesc" class="text-xs text-slate-400">Any horizontal row, vertical column, or diagonal line</p>
+                    </div>
+                </div>
+
+                <!-- Live Last Call Ticker -->
+                <div class="md:col-span-7 bg-glass rounded-2xl p-5 shadow-xl border border-slate-800 flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="text-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase block">Latest Host Call</span>
+                            <span id="playerLastCall" class="text-2xl font-black font-display text-amber-400">Waiting for call...</span>
+                        </div>
+                    </div>
+
+                    <!-- Call History Chips -->
+                    <div class="flex-1 overflow-x-auto pb-1">
+                        <div id="callHistoryList" class="flex items-center gap-1.5 justify-end"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View Options & Cards Grid -->
+            <div class="flex items-center justify-between gap-4 bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                <span class="text-xs font-bold text-slate-400 pl-2">6 Active Bingo Cards</span>
+                <div class="flex items-center gap-2 text-xs">
+                    <button id="btnViewGrid" onclick="window.setCardViewMode('grid')" class="px-3 py-1.5 rounded-lg font-bold bg-amber-500 text-slate-950">
+                        <i class="fa-solid fa-table-cells-large mr-1"></i> Grid
+                    </button>
+                    <button id="btnViewTabs" onclick="window.setCardViewMode('tabs')" class="px-3 py-1.5 rounded-lg font-bold text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-folder-open mr-1"></i> Tabs
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile/Tab View selector buttons -->
+            <div id="cardTabsContainer" class="hidden flex overflow-x-auto gap-2 pb-2"></div>
+
+            <!-- 6 Bingo Cards Container Grid -->
+            <div id="bingoCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+        </div>
+
+    </div>
+
+    <!-- Verification Modal -->
+    <div id="verifyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-4 animate-pop-in">
+            <div id="verifyModalIcon" class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-3xl">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <h3 id="verifyModalTitle" class="text-2xl font-black font-display text-white">Bingo Verified!</h3>
+            <p id="verifyModalBody" class="text-sm text-slate-300">Player logic check complete.</p>
+            <button onclick="window.closeVerifyModal()" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl border border-slate-600 transition-all">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Message Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-amber-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-4 animate-pop-in">
+            <div class="w-14 h-14 rounded-full bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-circle-question"></i>
+            </div>
+            <h3 id="confirmModalTitle" class="text-xl font-black font-display text-white">Confirm Action</h3>
+            <p id="confirmModalBody" class="text-sm text-slate-300">Are you sure you want to proceed?</p>
+            <div class="flex items-center gap-3 pt-2">
+                <button id="btnConfirmCancel" onclick="window.closeConfirmModal(false)" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 transition-all">
+                    Cancel
+                </button>
+                <button id="btnConfirmOk" onclick="window.closeConfirmModal(true)" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition-all shadow-lg">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+window.playerName = localStorage.getItem('bingo_player_name') || '';
+window.currentRole = 'player';
+window.cardViewMode = 'grid';
+window.activeTabCardIndex = 0;
+window.playerBingoCards = [];
+window.playerDaubed = {};
+window.autoDrawInterval = null;
+window.autoSpeed = 3000;
+
+window.BINGO_PATTERNS = {
+    line: {
+        name: 'Standard Line',
+        desc: 'Any horizontal row, vertical column, or diagonal line',
+        icon: 'fa-slash',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [0,0,1,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0]
+        ]
+    },
+    double_line: {
+        name: 'Double Line',
+        desc: 'Any 2 complete lines (rows, columns, or diagonals)',
+        icon: 'fa-equals',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [0,0,0,0,0]
+        ]
+    },
+    triple_line: {
+        name: 'Triple Line',
+        desc: 'Any 3 complete lines (rows, columns, or diagonals)',
+        icon: 'fa-bars',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [1,1,1,1,1]
+        ]
+    },
+    four_corners: {
+        name: '4 Corners',
+        desc: 'Cover all four extreme corners of the card',
+        icon: 'fa-vector-square',
+        grid: [
+            [1,0,0,0,1],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [1,0,0,0,1]
+        ]
+    },
+    postage_stamp: {
+        name: 'Postage Stamp',
+        desc: 'Any 2x2 block in any of the 4 corners',
+        icon: 'fa-stamp',
+        grid: [
+            [1,1,0,0,0],
+            [1,1,0,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0]
+        ]
+    },
+    all_postage_stamps: {
+        name: '4 Corner Stamps',
+        desc: '2x2 postage stamp blocks in all four corners',
+        icon: 'fa-cubes',
+        grid: [
+            [1,1,0,1,1],
+            [1,1,0,1,1],
+            [0,0,0,0,0],
+            [1,1,0,1,1],
+            [1,1,0,1,1]
+        ]
+    },
+    x_pattern: {
+        name: 'X Pattern',
+        desc: 'Both main diagonals crossing in an X shape',
+        icon: 'fa-xmark',
+        grid: [
+            [1,0,0,0,1],
+            [0,1,0,1,0],
+            [0,0,1,0,0],
+            [0,1,0,1,0],
+            [1,0,0,0,1]
+        ]
+    },
+    plus: {
+        name: 'Plus Sign (+)',
+        desc: 'Complete middle horizontal row and middle vertical column',
+        icon: 'fa-plus',
+        grid: [
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [1,1,1,1,1],
+            [0,0,1,0,0],
+            [0,0,1,0,0]
+        ]
+    },
+    star: {
+        name: 'Star / Asterisk',
+        desc: 'Both diagonals plus middle row and middle column',
+        icon: 'fa-asterisk',
+        grid: [
+            [1,0,1,0,1],
+            [0,1,1,1,0],
+            [1,1,1,1,1],
+            [0,1,1,1,0],
+            [1,0,1,0,1]
+        ]
+    },
+    frame: {
+        name: 'Outer Frame',
+        desc: 'All 16 squares on the outer perimeter of the card',
+        icon: 'fa-square',
+        grid: [
+            [1,1,1,1,1],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [1,1,1,1,1]
+        ]
+    },
+    inner_frame: {
+        name: 'Inner Box',
+        desc: 'The 8 squares surrounding the FREE space',
+        icon: 'fa-square-minus',
+        grid: [
+            [0,0,0,0,0],
+            [0,1,1,1,0],
+            [0,1,0,1,0],
+            [0,1,1,1,0],
+            [0,0,0,0,0]
+        ]
+    },
+    letter_t: {
+        name: 'Letter T',
+        desc: 'Complete top row and middle vertical column',
+        icon: 'fa-t',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [0,0,1,0,0],
+            [0,0,1,0,0]
+        ]
+    },
+    letter_l: {
+        name: 'Letter L',
+        desc: 'Complete left column and bottom horizontal row',
+        icon: 'fa-l',
+        grid: [
+            [1,0,0,0,0],
+            [1,0,0,0,0],
+            [1,0,0,0,0],
+            [1,0,0,0,0],
+            [1,1,1,1,1]
+        ]
+    },
+    letter_h: {
+        name: 'Letter H',
+        desc: 'Left and right columns plus middle horizontal row',
+        icon: 'fa-h',
+        grid: [
+            [1,0,0,0,1],
+            [1,0,0,0,1],
+            [1,1,1,1,1],
+            [1,0,0,0,1],
+            [1,0,0,0,1]
+        ]
+    },
+    letter_z: {
+        name: 'Letter Z',
+        desc: 'Top row, bottom row, and top-right to bottom-left diagonal',
+        icon: 'fa-z',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,0,1,0],
+            [0,0,1,0,0],
+            [0,1,0,0,0],
+            [1,1,1,1,1]
+        ]
+    },
+    diamond: {
+        name: 'Diamond Shape',
+        desc: 'Large diamond connecting middle points of each edge',
+        icon: 'fa-gem',
+        grid: [
+            [0,0,1,0,0],
+            [0,1,0,1,0],
+            [1,0,0,0,1],
+            [0,1,0,1,0],
+            [0,0,1,0,0]
+        ]
+    },
+    six_pack: {
+        name: 'Six Pack',
+        desc: 'Any 2x3 or 3x2 block anywhere on the card',
+        icon: 'fa-boxes-stacked',
+        grid: [
+            [1,1,1,0,0],
+            [1,1,1,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0]
+        ]
+    },
+    nine_pack: {
+        name: 'Nine Pack (3x3)',
+        desc: 'Any 3x3 block anywhere on the card',
+        icon: 'fa-table-cells',
+        grid: [
+            [1,1,1,0,0],
+            [1,1,1,0,0],
+            [1,1,1,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0]
+        ]
+    },
+    top_bottom: {
+        name: 'Top & Bottom Rows',
+        desc: 'Complete top row (B-I-N-G-O) and complete bottom row',
+        icon: 'fa-arrows-up-down',
+        grid: [
+            [1,1,1,1,1],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [0,0,0,0,0],
+            [1,1,1,1,1]
+        ]
+    },
+    blackout: {
+        name: 'Blackout (Full House)',
+        desc: 'Cover every single square (all 25 numbers)',
+        icon: 'fa-fill-drip',
+        grid: [
+            [1,1,1,1,1],
+            [1,1,1,1,1],
+            [1,1,1,1,1],
+            [1,1,1,1,1],
+            [1,1,1,1,1]
+        ]
+    }
+};
+
+window.gameData = { drawnNumbers: [], lastDrawn: null, claims: [], winningPattern: 'line', roundId: 1 };
+window.firestoreSyncHandler = null;
+window.confirmCallback = null;
+
+/* Audio Synthesizer */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+window.playTone = function(freq, type, duration) {
+    if (!document.getElementById('chkSoundEffects')?.checked && window.currentRole === 'host') return;
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e) {}
+};
+
+window.speakCallout = function(letter, number) {
+    if (!document.getElementById('chkAudioVoice')?.checked || window.currentRole !== 'host') return;
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(`${letter}, ${number}`);
+        msg.rate = 1.0;
+        msg.pitch = 1.1;
+        window.speechSynthesis.speak(msg);
+    }
+};
+
+window.getBingoLetter = function(num) {
+    if (num <= 15) return 'B';
+    if (num <= 30) return 'I';
+    if (num <= 45) return 'N';
+    if (num <= 60) return 'G';
+    return 'O';
+};
+
+window.switchRole = function(role) {
+    window.currentRole = role;
+    const btnPlayer = document.getElementById('btnRolePlayer');
+    const btnHost = document.getElementById('btnRoleHost');
+    const hostView = document.getElementById('hostView');
+    const playerView = document.getElementById('playerView');
+
+    if (btnPlayer && btnHost) {
+        if (role === 'host') {
+            btnHost.className = "flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 shadow-md";
+            btnPlayer.className = "flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold text-slate-400 hover:text-white transition-all duration-200 flex items-center justify-center gap-2";
+        } else {
+            btnPlayer.className = "flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 shadow-md";
+            btnHost.className = "flex-1 md:flex-initial px-5 py-2.5 rounded-lg text-sm font-bold text-slate-400 hover:text-white transition-all duration-200 flex items-center justify-center gap-2";
+        }
+    }
+
+    if (hostView && playerView) {
+        if (role === 'host') {
+            hostView.classList.remove('hidden');
+            playerView.classList.add('hidden');
+        } else {
+            playerView.classList.remove('hidden');
+            hostView.classList.add('hidden');
+        }
+    }
+};
+
+window.drawNextNumber = function() {
+    const drawn = window.gameData.drawnNumbers || [];
+    if (drawn.length >= 75) {
+        if (window.autoDrawInterval) window.toggleAutoDraw();
+        window.showToast('All 75 numbers have been drawn!', 'warning');
+        return;
+    }
+
+    let nextNum;
+    do {
+        nextNum = Math.floor(Math.random() * 75) + 1;
+    } while (drawn.includes(nextNum));
+
+    const letter = window.getBingoLetter(nextNum);
+    const updatedDrawn = [...drawn, nextNum];
+
+    window.gameData.drawnNumbers = updatedDrawn;
+    window.gameData.lastDrawn = { letter, number: nextNum };
+
+    window.playTone(523.25, 'sine', 0.2);
+    window.speakCallout(letter, nextNum);
+
+    window.updateUIFromState();
+
+    if (typeof window.firestoreSyncHandler === 'function') {
+        window.firestoreSyncHandler({
+            drawnNumbers: updatedDrawn,
+            lastDrawn: { letter, number: nextNum },
+            updatedAt: Date.now()
+        });
+    }
+};
+
+window.toggleAutoDraw = function() {
+    const btn = document.getElementById('btnAutoDraw');
+    const icon = document.getElementById('autoDrawIcon');
+    const text = document.getElementById('autoDrawText');
+
+    if (window.autoDrawInterval) {
+        clearInterval(window.autoDrawInterval);
+        window.autoDrawInterval = null;
+        if (btn) btn.className = "px-4 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition-all border border-slate-700 text-sm flex items-center gap-2";
+        if (icon) icon.className = "fa-solid fa-play text-amber-400";
+        if (text) text.textContent = "Auto";
+    } else {
+        window.drawNextNumber();
+        window.autoDrawInterval = setInterval(window.drawNextNumber, window.autoSpeed);
+        if (btn) btn.className = "px-4 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition-all text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20";
+        if (icon) icon.className = "fa-solid fa-pause text-slate-950";
+        if (text) text.textContent = "Pause";
+    }
+};
+
+window.updateAutoSpeed = function() {
+    const selectEl = document.getElementById('autoSpeedSelect');
+    if (selectEl) {
+        window.autoSpeed = parseInt(selectEl.value, 10);
+        if (window.autoDrawInterval) {
+            window.toggleAutoDraw();
+            window.toggleAutoDraw();
+        }
+    }
+};
+
+window.toggleMasterNumber = function(num) {
+    if (window.currentRole !== 'host') return;
+    const drawn = window.gameData.drawnNumbers || [];
+    let updatedDrawn;
+    const letter = window.getBingoLetter(num);
+
+    if (drawn.includes(num)) {
+        updatedDrawn = drawn.filter(n => n !== num);
+    } else {
+        updatedDrawn = [...drawn, num];
+        window.gameData.lastDrawn = { letter, number: num };
+        window.playTone(523.25, 'sine', 0.2);
+        window.speakCallout(letter, num);
+    }
+
+    window.gameData.drawnNumbers = updatedDrawn;
+    window.updateUIFromState();
+
+    if (typeof window.firestoreSyncHandler === 'function') {
+        window.firestoreSyncHandler({
+            drawnNumbers: updatedDrawn,
+            lastDrawn: window.gameData.lastDrawn,
+            updatedAt: Date.now()
+        });
+    }
+};
+
+window.confirmResetGame = function() {
+    window.showConfirmModal("Reset Game Round?", "Start a new game round? This will clear all drawn numbers and generate fresh cards for players!", () => {
+        if (window.autoDrawInterval) window.toggleAutoDraw();
+        
+        window.gameData = {
+            drawnNumbers: [],
+            lastDrawn: null,
+            claims: [],
+            winningPattern: window.gameData.winningPattern || 'line',
+            roundId: (window.gameData.roundId || 1) + 1,
+            updatedAt: Date.now()
+        };
+
+        window.updateUIFromState();
+        if (window.playerName) {
+            window.generatePlayerCards();
+            window.renderPlayerCards();
+        }
+
+        if (typeof window.firestoreResetHandler === 'function') {
+            window.firestoreResetHandler(window.gameData);
+        }
+        window.showToast('New game round started!', 'success');
+    });
+};
+
+window.changeWinningPattern = function(patternKey) {
+    if (window.currentRole !== 'host') return;
+    if (!window.BINGO_PATTERNS[patternKey]) return;
+
+    window.gameData.winningPattern = patternKey;
+    window.updateUIFromState();
+
+    if (typeof window.firestoreSyncHandler === 'function') {
+        window.firestoreSyncHandler({
+            winningPattern: patternKey,
+            updatedAt: Date.now()
+        });
+    }
+
+    const pSpec = window.BINGO_PATTERNS[patternKey];
+    window.showToast(`Game pattern updated to: ${pSpec.name}`, 'info');
+};
+
+window.renderMiniPatternGrid = function(containerId, patternKey) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const spec = window.BINGO_PATTERNS[patternKey] || window.BINGO_PATTERNS.line;
+    const grid = spec.grid;
+
+    let html = '';
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+            const active = grid[r][c] === 1;
+            html += `<div class="rounded-xs ${active ? 'bg-amber-400 shadow-sm' : 'bg-slate-800/80'}"></div>`;
+        }
+    }
+    el.innerHTML = html;
+};
+
+window.savePlayerName = function() {
+    const inputEl = document.getElementById('inputPlayerName');
+    const input = inputEl ? inputEl.value.trim() : '';
+    if (!input) {
+        window.showToast('Please enter a valid display name.', 'error');
+        return;
+    }
+    window.playerName = input;
+    localStorage.setItem('bingo_player_name', window.playerName);
+    window.showPlayerMainArea();
+};
+
+window.changePlayerName = function() {
+    const setupCard = document.getElementById('playerSetupCard');
+    const mainArea = document.getElementById('playerMainArea');
+    if (setupCard) setupCard.classList.remove('hidden');
+    if (mainArea) mainArea.classList.add('hidden');
+};
+
+window.showPlayerMainArea = function() {
+    const nameEl = document.getElementById('displayPlayerName');
+    if (nameEl) nameEl.textContent = window.playerName;
+    
+    const setupCard = document.getElementById('playerSetupCard');
+    const mainArea = document.getElementById('playerMainArea');
+    if (setupCard) setupCard.classList.add('hidden');
+    if (mainArea) mainArea.classList.remove('hidden');
+
+    if (window.playerBingoCards.length === 0) {
+        window.generatePlayerCards();
+    }
+    window.renderPlayerCards();
+};
+
+window.generatePlayerCards = function() {
+    window.playerBingoCards = [];
+    window.playerDaubed = {};
+
+    for (let c = 0; c < 6; c++) {
+        window.playerDaubed[c] = new Set(['FREE']);
+        const b = getRandomNumbers(1, 15, 5);
+        const i = getRandomNumbers(16, 30, 5);
+        const n = getRandomNumbers(31, 45, 5);
+        const g = getRandomNumbers(46, 60, 5);
+        const o = getRandomNumbers(61, 75, 5);
+
+        const grid = [];
+        for (let row = 0; row < 5; row++) {
+            grid[row] = [
+                b[row],
+                i[row],
+                (row === 2) ? 'FREE' : n[row],
+                g[row],
+                o[row]
+            ];
+        }
+        window.playerBingoCards.push(grid);
+    }
+};
+
+function getRandomNumbers(min, max, count) {
+    const nums = [];
+    while (nums.length < count) {
+        const r = Math.floor(Math.random() * (max - min + 1)) + min;
+        if (!nums.includes(r)) nums.push(r);
+    }
+    return nums;
+}
+
+window.generateNewCardsForPlayer = function() {
+    window.showConfirmModal("Get New Cards?", "Refresh and get 6 brand new Bingo cards?", () => {
+        window.generatePlayerCards();
+        window.renderPlayerCards();
+        window.showToast("6 new Bingo cards generated!", "success");
+    });
+};
+
+window.renderPlayerCards = function() {
+    const container = document.getElementById('bingoCardsGrid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    window.playerBingoCards.forEach((grid, cardIndex) => {
+        const cardBox = document.createElement('div');
+        cardBox.id = `playerCardBox-${cardIndex}`;
+        cardBox.className = `bg-glass rounded-2xl p-4 shadow-xl border border-slate-800 flex flex-col justify-between transition-all ${
+            window.cardViewMode === 'tabs' && window.activeTabCardIndex !== cardIndex ? 'hidden' : ''
+        }`;
+
+        let gridHtml = `
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-black uppercase text-amber-400 tracking-wider">CARD #${cardIndex + 1}</span>
+                    <span class="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800">5x5 Standard</span>
+                </div>
+
+                <div class="grid grid-cols-5 gap-1.5 mb-1.5 text-center font-display font-black text-sm">
+                    <div class="py-1 rounded bg-bingo-b text-slate-950">B</div>
+                    <div class="py-1 rounded bg-bingo-i text-slate-950">I</div>
+                    <div class="py-1 rounded bg-bingo-n text-slate-950">N</div>
+                    <div class="py-1 rounded bg-bingo-g text-slate-950">G</div>
+                    <div class="py-1 rounded bg-bingo-o text-slate-950">O</div>
+                </div>
+
+                <div class="grid grid-cols-5 gap-1.5">
+        `;
+
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                const val = grid[r][c];
+                const isFree = val === 'FREE';
+                const parsedVal = (typeof val === 'string' && !isNaN(Number(val)) && val !== 'FREE') ? Number(val) : val;
+                const isDaubed = window.playerDaubed[cardIndex]?.has(parsedVal);
+
+                gridHtml += `
+                    <button onclick="window.toggleDaub(${cardIndex}, '${val}')" id="cell-${cardIndex}-${val}" 
+                        class="aspect-square rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center transition-all duration-150 select-none cursor-pointer ${
+                            isDaubed ? 'daubed-cell font-black' : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800'
+                        }">
+                        ${isFree ? '<i class="fa-solid fa-star text-amber-300 text-xs"></i>' : val}
+                    </button>
+                `;
+            }
+        }
+
+        gridHtml += `
+                </div>
+            </div>
+
+            <button onclick="window.claimBingo(${cardIndex})" class="mt-4 w-full py-2.5 bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 hover:opacity-90 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer">
+                <i class="fa-solid fa-crown"></i> BINGO!
+            </button>
+        `;
+
+        cardBox.innerHTML = gridHtml;
+        container.appendChild(cardBox);
+    });
+
+    renderTabButtons();
+};
+
+window.toggleDaub = function(cardIndex, value) {
+    if (value === 'FREE') return;
+    const parsedVal = (typeof value === 'string' && !isNaN(Number(value)) && value.trim() !== '') ? Number(value) : value;
+    const set = window.playerDaubed[cardIndex];
+    if (!set) return;
+
+    if (set.has(parsedVal)) {
+        set.delete(parsedVal);
+        window.playTone(300, 'sine', 0.1);
+    } else {
+        set.add(parsedVal);
+        window.playTone(600, 'sine', 0.1);
+    }
+    window.renderPlayerCards();
+};
+
+window.setCardViewMode = function(mode) {
+    window.cardViewMode = mode;
+    const btnGrid = document.getElementById('btnViewGrid');
+    const btnTabs = document.getElementById('btnViewTabs');
+    if (btnGrid) btnGrid.className = mode === 'grid' ? "px-3 py-1.5 rounded-lg font-bold bg-amber-500 text-slate-950" : "px-3 py-1.5 rounded-lg font-bold text-slate-400 hover:text-white";
+    if (btnTabs) btnTabs.className = mode === 'tabs' ? "px-3 py-1.5 rounded-lg font-bold bg-amber-500 text-slate-950" : "px-3 py-1.5 rounded-lg font-bold text-slate-400 hover:text-white";
+    
+    window.renderPlayerCards();
+};
+
+function renderTabButtons() {
+    const tabsContainer = document.getElementById('cardTabsContainer');
+    if (!tabsContainer) return;
+    if (window.cardViewMode === 'tabs') {
+        tabsContainer.classList.remove('hidden');
+        tabsContainer.innerHTML = [0,1,2,3,4,5].map(idx => `
+            <button onclick="window.setActiveCardTab(${idx})" class="px-4 py-2 rounded-xl font-bold text-xs shrink-0 transition-all ${
+                window.activeTabCardIndex === idx 
+                    ? 'bg-amber-500 text-slate-950 shadow-md' 
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }">
+                Card ${idx + 1}
+            </button>
+        `).join('');
+    } else {
+        tabsContainer.classList.add('hidden');
+    }
+}
+
+window.setActiveCardTab = function(idx) {
+    window.activeTabCardIndex = idx;
+    window.renderPlayerCards();
+};
+
+window.updateUIFromState = function() {
+    const drawn = window.gameData.drawnNumbers || [];
+    const activePatternKey = window.gameData.winningPattern || 'line';
+    const patternSpec = window.BINGO_PATTERNS[activePatternKey] || window.BINGO_PATTERNS.line;
+
+    const selectEl = document.getElementById('selectBingoPattern');
+    if (selectEl && selectEl.value !== activePatternKey) {
+        selectEl.value = activePatternKey;
+    }
+    const hostPatternTitle = document.getElementById('hostPatternTitle');
+    if (hostPatternTitle) hostPatternTitle.textContent = patternSpec.name;
+    const hostPatternDesc = document.getElementById('hostPatternDesc');
+    if (hostPatternDesc) hostPatternDesc.textContent = patternSpec.desc;
+    const hostPatternIcon = document.getElementById('hostPatternIcon');
+    if (hostPatternIcon) hostPatternIcon.className = `fa-solid ${patternSpec.icon} text-2xl`;
+
+    const playerPatternName = document.getElementById('playerPatternName');
+    if (playerPatternName) playerPatternName.textContent = patternSpec.name;
+    const playerPatternDesc = document.getElementById('playerPatternDesc');
+    if (playerPatternDesc) playerPatternDesc.textContent = patternSpec.desc;
+
+    window.renderMiniPatternGrid('hostPatternPreview', activePatternKey);
+    window.renderMiniPatternGrid('playerPatternPreview', activePatternKey);
+
+    for (let i = 1; i <= 75; i++) {
+        const el = document.getElementById(`masterNum-${i}`);
+        if (el) {
+            if (drawn.includes(i)) {
+                el.className = "h-9 rounded-lg bg-gradient-to-tr from-amber-500 to-rose-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-lg shadow-amber-500/20 transform scale-105 cursor-pointer";
+            } else {
+                el.className = "h-9 rounded-lg bg-slate-900 border border-slate-800 text-slate-500 text-xs font-bold flex items-center justify-center transition-all cursor-pointer hover:border-amber-500/50";
+            }
+        }
+    }
+
+    const drawnCount = document.getElementById('drawnCount');
+    if (drawnCount) drawnCount.textContent = `${drawn.length} / 75`;
+
+    if (window.gameData.lastDrawn) {
+        const { letter, number } = window.gameData.lastDrawn;
+        const curLet = document.getElementById('currentLetter');
+        const curNum = document.getElementById('currentNumber');
+        const pLast = document.getElementById('playerLastCall');
+
+        if (curLet) {
+            curLet.textContent = letter;
+            curLet.className = `text-2xl font-black font-display text-bingo-${letter.toLowerCase()}`;
+        }
+        if (curNum) curNum.textContent = number;
+        if (pLast) {
+            pLast.textContent = `${letter} - ${number}`;
+            pLast.className = `text-2xl font-black font-display text-bingo-${letter.toLowerCase()} animate-pop-in`;
+        }
+    } else {
+        const curLet = document.getElementById('currentLetter');
+        const curNum = document.getElementById('currentNumber');
+        const pLast = document.getElementById('playerLastCall');
+
+        if (curLet) {
+            curLet.textContent = '-';
+            curLet.className = "text-2xl font-black font-display text-slate-500";
+        }
+        if (curNum) curNum.textContent = '--';
+        if (pLast) pLast.textContent = 'Waiting for call...';
+    }
+
+    const historyContainer = document.getElementById('callHistoryList');
+    if (historyContainer) {
+        if (drawn.length > 0) {
+            historyContainer.innerHTML = drawn.slice().reverse().map(num => {
+                const letter = window.getBingoLetter(num);
+                return `<div class="px-3 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold font-display text-slate-200 shrink-0">
+                            <span class="text-amber-400">${letter}</span> ${num}
+                        </div>`;
+            }).join('');
+        } else {
+            historyContainer.innerHTML = '<span class="text-slate-600 text-sm italic">No calls drawn yet.</span>';
+        }
+    }
+
+    renderClaimsFeed();
+    updatePlayerAutoHighlights();
+};
+
+function renderMasterBoardGrid() {
+    const rows = {
+        'B': { min: 1, max: 15, container: document.getElementById('boardRowB') },
+        'I': { min: 16, max: 30, container: document.getElementById('boardRowI') },
+        'N': { min: 31, max: 45, container: document.getElementById('boardRowN') },
+        'G': { min: 46, max: 60, container: document.getElementById('boardRowG') },
+        'O': { min: 61, max: 75, container: document.getElementById('boardRowO') }
+    };
+
+    for (let letter in rows) {
+        const { min, max, container } = rows[letter];
+        if (!container) continue;
+        container.innerHTML = '';
+        for (let i = min; i <= max; i++) {
+            const numBtn = document.createElement('button');
+            numBtn.id = `masterNum-${i}`;
+            numBtn.type = 'button';
+            numBtn.onclick = () => window.toggleMasterNumber(i);
+            numBtn.className = "h-9 rounded-lg bg-slate-900 border border-slate-800 text-slate-500 text-xs font-bold flex items-center justify-center transition-all cursor-pointer hover:border-amber-500/50";
+            numBtn.textContent = i;
+            container.appendChild(numBtn);
+        }
+    }
+}
+
+function renderClaimsFeed() {
+    const claims = window.gameData.claims || [];
+    const container = document.getElementById('claimsList');
+    const noClaimsText = document.getElementById('noClaimsText');
+    const claimsCountEl = document.getElementById('claimsCount');
+    const badgeEl = document.getElementById('activeClaimsBadge');
+
+    if (claimsCountEl) claimsCountEl.textContent = claims.length;
+    if (badgeEl) badgeEl.textContent = claims.length;
+
+    if (!container) return;
+
+    if (claims.length === 0) {
+        if (noClaimsText) noClaimsText.classList.remove('hidden');
+        container.innerHTML = '';
+        if (noClaimsText) container.appendChild(noClaimsText);
+        return;
+    }
+
+    if (noClaimsText) noClaimsText.classList.add('hidden');
+    container.innerHTML = claims.slice().reverse().map(claim => {
+        return `
+            <div class="bg-slate-900 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3 shadow-md animate-pop-in">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-white text-sm">${escapeHtml(claim.playerName)}</div>
+                        <div class="text-xs text-slate-400">Card #${claim.cardIndex + 1} &bull; ${new Date(claim.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</div>
+                    </div>
+                </div>
+                <button onclick="window.verifyPlayerBingo('${escapeHtml(claim.playerName)}', ${claim.cardIndex}, '${encodeURIComponent(JSON.stringify(claim.cardNumbers))}')" class="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-xs rounded-lg border border-emerald-500/30 transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-magnifying-glass"></i> Verify
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+window.verifyPlayerBingo = function(pName, cardIdx, encodedNumbers) {
+    const cardNumbers = JSON.parse(decodeURIComponent(encodedNumbers));
+    const drawn = window.gameData.drawnNumbers || [];
+    const activePattern = window.gameData.winningPattern || 'line';
+    const patternSpec = window.BINGO_PATTERNS[activePattern] || window.BINGO_PATTERNS.line;
+
+    let isValid = checkBingoValidity(cardNumbers, drawn, activePattern);
+
+    const modalIcon = document.getElementById('verifyModalIcon');
+    const modalTitle = document.getElementById('verifyModalTitle');
+    const modalBody = document.getElementById('verifyModalBody');
+
+    if (isValid) {
+        if (modalIcon) {
+            modalIcon.className = "w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-3xl";
+            modalIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
+        }
+        if (modalTitle) {
+            modalTitle.textContent = "VALID BINGO!";
+            modalTitle.className = "text-2xl font-black font-display text-emerald-400";
+        }
+        if (modalBody) modalBody.textContent = `All required numbers for the '${patternSpec.name}' pattern on ${pName}'s Card #${cardIdx + 1} match drawn host calls!`;
+        window.playTone(880, 'triangle', 0.5);
+    } else {
+        if (modalIcon) {
+            modalIcon.className = "w-16 h-16 rounded-full bg-rose-500/20 text-rose-400 mx-auto flex items-center justify-center text-3xl";
+            modalIcon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        }
+        if (modalTitle) {
+            modalTitle.textContent = "INVALID CLAIM";
+            modalTitle.className = "text-2xl font-black font-display text-rose-400";
+        }
+        if (modalBody) modalBody.textContent = `${pName}'s card does NOT match the required '${patternSpec.name}' pattern with drawn numbers yet.`;
+        window.playTone(220, 'sawtooth', 0.5);
+    }
+
+    const verifyModal = document.getElementById('verifyModal');
+    if (verifyModal) verifyModal.classList.remove('hidden');
+};
+
+function checkBingoValidity(grid, drawn, patternKey = 'line') {
+    const isDrawn = (val) => val === 'FREE' || drawn.includes(val);
+
+    function getCompletedLinesCount() {
+        let count = 0;
+        for (let r = 0; r < 5; r++) {
+            if (grid[r].every(isDrawn)) count++;
+        }
+        for (let c = 0; c < 5; c++) {
+            let colWin = true;
+            for (let r = 0; r < 5; r++) { if (!isDrawn(grid[r][c])) { colWin = false; break; } }
+            if (colWin) count++;
+        }
+        let d1 = true, d2 = true;
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[i][i])) d1 = false;
+            if (!isDrawn(grid[i][4 - i])) d2 = false;
+        }
+        if (d1) count++;
+        if (d2) count++;
+        return count;
+    }
+
+    if (patternKey === 'line') return getCompletedLinesCount() >= 1;
+    if (patternKey === 'double_line') return getCompletedLinesCount() >= 2;
+    if (patternKey === 'triple_line') return getCompletedLinesCount() >= 3;
+
+    if (patternKey === 'four_corners') {
+        return isDrawn(grid[0][0]) && isDrawn(grid[0][4]) && isDrawn(grid[4][0]) && isDrawn(grid[4][4]);
+    }
+
+    if (patternKey === 'postage_stamp') {
+        const stamps = [
+            [[0,0],[0,1],[1,0],[1,1]], // Top-Left
+            [[0,3],[0,4],[1,3],[1,4]], // Top-Right
+            [[3,0],[3,1],[4,0],[4,1]], // Bottom-Left
+            [[3,3],[3,4],[4,3],[4,4]]  // Bottom-Right
+        ];
+        return stamps.some(stamp => stamp.every(([r,c]) => isDrawn(grid[r][c])));
+    }
+
+    if (patternKey === 'all_postage_stamps') {
+        const stamps = [
+            [[0,0],[0,1],[1,0],[1,1]], // Top-Left
+            [[0,3],[0,4],[1,3],[1,4]], // Top-Right
+            [[3,0],[3,1],[4,0],[4,1]], // Bottom-Left
+            [[3,3],[3,4],[4,3],[4,4]]  // Bottom-Right
+        ];
+        return stamps.every(stamp => stamp.every(([r,c]) => isDrawn(grid[r][c])));
+    }
+
+    if (patternKey === 'x_pattern') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[i][i]) || !isDrawn(grid[i][4 - i])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'plus') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[2][i]) || !isDrawn(grid[i][2])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'star') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[i][i]) || !isDrawn(grid[i][4 - i]) || !isDrawn(grid[2][i]) || !isDrawn(grid[i][2])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'frame') {
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                if (r === 0 || r === 4 || c === 0 || c === 4) {
+                    if (!isDrawn(grid[r][c])) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    if (patternKey === 'inner_frame') {
+        const coords = [[1,1],[1,2],[1,3],[2,1],[2,3],[3,1],[3,2],[3,3]];
+        return coords.every(([r,c]) => isDrawn(grid[r][c]));
+    }
+
+    if (patternKey === 'letter_t') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[0][i]) || !isDrawn(grid[i][2])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'letter_l') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[i][0]) || !isDrawn(grid[4][i])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'letter_h') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[i][0]) || !isDrawn(grid[i][4]) || !isDrawn(grid[2][i])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'letter_z') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[0][i]) || !isDrawn(grid[4][i]) || !isDrawn(grid[i][4 - i])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'diamond') {
+        const coords = [[0,2],[1,1],[1,3],[2,0],[2,4],[3,1],[3,3],[4,2]];
+        return coords.every(([r,c]) => isDrawn(grid[r][c]));
+    }
+
+    if (patternKey === 'six_pack') {
+        for (let r = 0; r <= 3; r++) {
+            for (let c = 0; c <= 2; c++) {
+                if (isDrawn(grid[r][c]) && isDrawn(grid[r][c+1]) && isDrawn(grid[r][c+2]) &&
+                    isDrawn(grid[r+1][c]) && isDrawn(grid[r+1][c+1]) && isDrawn(grid[r+1][c+2])) return true;
+            }
+        }
+        for (let r = 0; r <= 2; r++) {
+            for (let c = 0; c <= 3; c++) {
+                if (isDrawn(grid[r][c]) && isDrawn(grid[r][c+1]) &&
+                    isDrawn(grid[r+1][c]) && isDrawn(grid[r+1][c+1]) &&
+                    isDrawn(grid[r+2][c]) && isDrawn(grid[r+2][c+1])) return true;
+            }
+        }
+        return false;
+    }
+
+    if (patternKey === 'nine_pack') {
+        for (let r = 0; r <= 2; r++) {
+            for (let c = 0; c <= 2; c++) {
+                let match = true;
+                for (let dr = 0; dr < 3; dr++) {
+                    for (let dc = 0; dc < 3; dc++) {
+                        if (!isDrawn(grid[r+dr][c+dc])) { match = false; break; }
+                    }
+                    if (!match) break;
+                }
+                if (match) return true;
+            }
+        }
+        return false;
+    }
+
+    if (patternKey === 'top_bottom') {
+        for (let i = 0; i < 5; i++) {
+            if (!isDrawn(grid[0][i]) || !isDrawn(grid[4][i])) return false;
+        }
+        return true;
+    }
+
+    if (patternKey === 'blackout') {
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                if (!isDrawn(grid[r][c])) return false;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+function updatePlayerAutoHighlights() {
+    const drawn = window.gameData.drawnNumbers || [];
+    window.playerBingoCards.forEach((grid, cardIndex) => {
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 5; c++) {
+                const val = grid[r][c];
+                if (val !== 'FREE' && drawn.includes(val)) {
+                    const el = document.getElementById(`cell-${cardIndex}-${val}`);
+                    if (el && !window.playerDaubed[cardIndex]?.has(val)) {
+                        el.classList.add('border-amber-400/80', 'animate-pulse');
+                    }
+                }
+            }
+        }
+    });
+}
+
+window.claimBingo = function(cardIndex) {
+    if (!window.playerName) {
+        window.showToast('Please enter your name first!', 'warning');
+        return;
+    }
+
+    const cardNumbers = window.playerBingoCards[cardIndex];
+    const drawn = window.gameData.drawnNumbers || [];
+    const activePattern = window.gameData.winningPattern || 'line';
+    const patternSpec = window.BINGO_PATTERNS[activePattern] || window.BINGO_PATTERNS.line;
+
+    const isValid = checkBingoValidity(cardNumbers, drawn, activePattern);
+    if (!isValid) {
+        window.playTone(200, 'sawtooth', 0.4);
+        window.showToast(`Cannot Claim BINGO! Card #${cardIndex + 1} does not match required pattern (${patternSpec.name}).`, 'error');
+        return;
+    }
+
+    window.playTone(880, 'square', 0.3);
+
+    const newClaim = {
+        playerName: window.playerName,
+        cardIndex: cardIndex,
+        cardNumbers: cardNumbers,
+        pattern: activePattern,
+        timestamp: Date.now()
+    };
+
+    window.gameData.claims = window.gameData.claims || [];
+    window.gameData.claims.push(newClaim);
+    window.updateUIFromState();
+
+    if (typeof window.firestoreClaimHandler === 'function') {
+        window.firestoreClaimHandler(newClaim);
+    }
+
+    window.showToast(`BINGO claim submitted for Card #${cardIndex + 1}! Host notified.`, 'success');
+
+    // Automatically change/refresh player cards upon claiming bingo as requested
+    window.generatePlayerCards();
+    window.renderPlayerCards();
+};
+
+window.closeVerifyModal = function() {
+    const verifyModal = document.getElementById('verifyModal');
+    if (verifyModal) verifyModal.classList.add('hidden');
+};
+
+window.showToast = function(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    const colors = {
+        success: 'bg-emerald-950 border-emerald-500 text-emerald-200',
+        error: 'bg-rose-950 border-rose-500 text-rose-200',
+        warning: 'bg-amber-950 border-amber-500 text-amber-200',
+        info: 'bg-slate-900 border-slate-700 text-slate-200'
+    };
+
+    toast.className = `px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-xs sm:text-sm font-bold animate-pop-in pointer-events-auto ${colors[type] || colors.info}`;
+    toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+};
+
+window.showConfirmModal = function(title, message, callback) {
+    const titleEl = document.getElementById('confirmModalTitle');
+    const bodyEl = document.getElementById('confirmModalBody');
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.textContent = message;
+    window.confirmCallback = callback;
+
+    const modal = document.getElementById('confirmModal');
+    if (modal) modal.classList.remove('hidden');
+};
+
+window.closeConfirmModal = function(confirmed) {
+    const modal = document.getElementById('confirmModal');
+    if (modal) modal.classList.add('hidden');
+    if (confirmed && typeof window.confirmCallback === 'function') {
+        window.confirmCallback();
+    }
+    window.confirmCallback = null;
+};
+
+window.copyPlayerShareLink = function() {
+    const url = window.location.origin + window.location.pathname + '?role=player';
+    const tempInput = document.createElement('input');
+    document.body.appendChild(tempInput);
+    tempInput.value = url;
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
+    window.showToast('Player Link copied to clipboard!', 'success');
+};
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderMasterBoardGrid();
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('role') === 'host') {
+        window.switchRole('host');
+    } else {
+        window.switchRole('player');
+    }
+
+    if (window.playerName) {
+        const inputEl = document.getElementById('inputPlayerName');
+        if (inputEl) inputEl.value = window.playerName;
+        window.showPlayerMainArea();
+    }
+});
+</script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'bingo-live-hub';
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+    apiKey: "demo",
+    authDomain: "demo.firebaseapp.com",
+    projectId: "demo",
+    storageBucket: "demo.appspot.com",
+    messagingSenderId: "00000000000",
+    appId: "1:00000000000:web:00000000000"
+};
+
+try {
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'bingo_room_101');
+
+    window.firestoreSyncHandler = async (updateData) => {
+        try {
+            await updateDoc(gameDocRef, updateData);
+        } catch(e) {
+            console.warn("Firebase sync fallback:", e);
+        }
+    };
+
+    window.firestoreResetHandler = async (fullData) => {
+        try {
+            await setDoc(gameDocRef, fullData);
+        } catch(e) {
+            console.warn("Firebase reset sync fallback:", e);
+        }
+    };
+
+    window.firestoreClaimHandler = async (claimObj) => {
+        try {
+            await updateDoc(gameDocRef, {
+                claims: arrayUnion(claimObj)
+            });
+        } catch(e) {
+            console.warn("Firebase claim sync fallback:", e);
+        }
+    };
+
+    await signInAnonymously(auth).catch((e) => console.warn(e));
+
+    onSnapshot(gameDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            if (data.roundId !== window.gameData.roundId) {
+                if (window.playerName) {
+                    window.generatePlayerCards();
+                    window.renderPlayerCards();
+                }
+            }
+
+            window.gameData = data;
+            window.updateUIFromState();
+        } else {
+            setDoc(gameDocRef, {
+                drawnNumbers: [],
+                lastDrawn: null,
+                claims: [],
+                winningPattern: 'line',
+                roundId: 1,
+                updatedAt: Date.now()
+            });
+        }
+    }, (error) => {
+        console.warn("Firestore listener note:", error.message);
+    });
+
+} catch (err) {
+    console.warn("Operating in standalone state mode:", err);
+}
+</script>
+</body>
+</html>
